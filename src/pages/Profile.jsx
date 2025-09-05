@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
-import { stripeService } from '../services'
+import { getStripeService } from '../services'
 import { User, MapPin, Star, Settings, Shield, CreditCard, Loader, CheckCircle } from 'lucide-react'
 
 const Profile = () => {
@@ -14,6 +14,7 @@ const Profile = () => {
     // Load pricing plans and subscription details
     const loadSubscriptionData = async () => {
       try {
+        const { default: stripeService } = await getStripeService()
         const plans = stripeService.getPricingPlans()
         setPricingPlans(plans)
 
@@ -32,6 +33,7 @@ const Profile = () => {
     
     try {
       // Create Stripe checkout session
+      const { default: stripeService } = await getStripeService()
       const result = await stripeService.createCheckoutSession(
         pricingPlans.premium.id,
         user.userId
@@ -72,6 +74,7 @@ const Profile = () => {
     setLoading(true)
 
     try {
+      const { default: stripeService } = await getStripeService()
       const result = await stripeService.cancelSubscription(subscriptionDetails.subscriptionId)
       
       if (result.success) {

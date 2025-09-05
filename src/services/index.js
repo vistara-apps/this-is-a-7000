@@ -1,10 +1,12 @@
 // Service exports for easy importing
 export { default as openaiService } from './openaiService.js'
 export { default as supabaseService } from './supabaseService.js'
-export { default as pinataService } from './pinataService.js'
-export { default as stripeService } from './stripeService.js'
-export { default as locationService } from './locationService.js'
 export { config, validateConfig } from './config.js'
+
+// Dynamic imports for services that need initialization
+export const getStripeService = () => import('./stripeService.js')
+export const getPinataService = () => import('./pinataService.js')
+export const getLocationService = () => import('./locationService.js')
 
 // Initialize services and validate configuration
 export const initializeServices = async () => {
@@ -18,7 +20,7 @@ export const initializeServices = async () => {
 
   // Initialize Stripe if configured
   try {
-    const { default: stripeService } = await import('./stripeService.js')
+    const { default: stripeService } = await getStripeService()
     await stripeService.initialize()
     console.log('✅ Stripe service initialized')
   } catch (error) {
@@ -27,7 +29,7 @@ export const initializeServices = async () => {
 
   // Test Pinata connection if configured
   try {
-    const { default: pinataService } = await import('./pinataService.js')
+    const { default: pinataService } = await getPinataService()
     const authTest = await pinataService.testAuthentication()
     if (authTest.success) {
       console.log('✅ Pinata service connected')
@@ -40,7 +42,7 @@ export const initializeServices = async () => {
 
   // Initialize location services
   try {
-    const { default: locationService } = await import('./locationService.js')
+    const { default: locationService } = await getLocationService()
     const isAvailable = locationService.isGeolocationAvailable()
     if (isAvailable) {
       console.log('✅ Location services available')

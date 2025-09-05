@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { locationService, supabaseService, stripeService } from '../services'
+import { supabaseService, getLocationService, getStripeService } from '../services'
 
 const AppContext = createContext()
 
@@ -30,6 +30,7 @@ export const AppProvider = ({ children }) => {
     const initializeUser = async () => {
       try {
         // Get location with enhanced service
+        const { default: locationService } = await getLocationService()
         const location = await locationService.getLocationWithFallback()
         
         // Update user with location
@@ -53,6 +54,7 @@ export const AppProvider = ({ children }) => {
         setIncidents(userIncidents)
 
         // Check subscription status
+        const { default: stripeService } = await getStripeService()
         const subscriptionStatus = await stripeService.getSubscriptionStatus(updatedUser.userId)
         if (subscriptionStatus.status === 'active') {
           setUser(prev => ({ ...prev, subscriptionStatus: 'premium' }))

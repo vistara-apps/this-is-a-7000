@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import RecordButton from '../components/RecordButton'
-import { pinataService } from '../services'
+import { getPinataService } from '../services'
 import { Video, Save, Trash2, MapPin, Clock, Upload, AlertCircle } from 'lucide-react'
 
 const IncidentRecorder = () => {
@@ -86,6 +86,7 @@ const IncidentRecorder = () => {
     
     try {
       // Upload to Pinata (or use local fallback)
+      const { default: pinataService } = await getPinataService()
       const uploadResult = await pinataService.uploadFile(currentRecording.blob, {
         name: `incident_${Date.now()}`,
         userId: user.userId,
