@@ -1,13 +1,16 @@
 import React, { useState, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import RecordButton from '../components/RecordButton'
-import { Video, Save, Trash2, MapPin, Clock } from 'lucide-react'
+import { pinataService } from '../services'
+import { Video, Save, Trash2, MapPin, Clock, Upload, AlertCircle } from 'lucide-react'
 
 const IncidentRecorder = () => {
-  const { user, language, isRecording, setIsRecording, incidents, setIncidents } = useApp()
+  const { user, language, isRecording, setIsRecording, incidents, addIncident } = useApp()
   const [recordingDuration, setRecordingDuration] = useState(0)
   const [currentRecording, setCurrentRecording] = useState(null)
   const [notes, setNotes] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const mediaRecorderRef = useRef(null)
   const streamRef = useRef(null)
   const intervalRef = useRef(null)
@@ -75,29 +78,67 @@ const IncidentRecorder = () => {
     }
   }
 
-  const saveRecording = () => {
+  const saveRecording = async () => {
     if (!currentRecording) return
     
-    const newIncident = {
-      incidentId: `incident_${Date.now()}`,
-      userId: user.userId,
-      timestamp: currentRecording.timestamp,
-      recordingUrl: currentRecording.url, // In real app, this would be uploaded to Pinata
-      location: user.location,
-      notes: notes,
-      duration: currentRecording.duration
+    setUploading(true)
+    setUploadProgress(0)
+    
+    try {
+      // Upload to Pinata (or use local fallback)
+      const uploadResult = await pinataService.uploadFile(currentRecording.blob, {
+        name: `incident_${Date.now()}`,
+        userId: user.userId,
+        timestamp: currentRecording.timestamp.toISOString(),
+        type: 'incident_recording',
+        customData: {
+          duration: currentRecording.duration,
+          location: user.location?.state || 'Unknown',
+          notes: notes
+        }
+      })
+
+      setUploadProgress(50)
+
+      // Create incident record
+      const newIncident = {
+        incidentId: `incident_${Date.now()}`,
+        userId: user.userId,
+        timestamp: currentRecording.timestamp,
+        recordingUrl: uploadResult.url,
+        ipfsHash: uploadResult.ipfsHash,
+        location: user.location,
+        notes: notes,
+        duration: currentRecording.duration,
+        fileSize: currentRecording.blob.size,
+        uploadedAt: new Date().toISOString()
+      }
+
+      setUploadProgress(75)
+
+      // Add to incidents using context method
+      await addIncident(newIncident)
+
+      setUploadProgress(100)
+
+      // Reset recording state
+      setCurrentRecording(null)
+      setNotes('')
+      setRecordingDuration(0)
+      
+      alert(language === 'en' 
+        ? 'Recording saved and uploaded successfully!' 
+        : '¡Grabación guardada y subida exitosamente!')
+
+    } catch (error) {
+      console.error('Error saving recording:', error)
+      alert(language === 'en' 
+        ? 'Error saving recording. Please try again.' 
+        : 'Error al guardar la grabación. Por favor intenta de nuevo.')
+    } finally {
+      setUploading(false)
+      setUploadProgress(0)
     }
-    
-    setIncidents(prev => [...prev, newIncident])
-    
-    // Reset recording state
-    setCurrentRecording(null)
-    setNotes('')
-    setRecordingDuration(0)
-    
-    alert(language === 'en' 
-      ? 'Recording saved successfully!' 
-      : '¡Grabación guardada exitosamente!')
   }
 
   const discardRecording = () => {

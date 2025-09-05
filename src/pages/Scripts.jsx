@@ -1,12 +1,16 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import ScriptButton from '../components/ScriptButton'
 import LanguageSelector from '../components/LanguageSelector'
-import { MessageSquare, Star } from 'lucide-react'
+import { openaiService } from '../services'
+import { MessageSquare, Star, Sparkles, Loader } from 'lucide-react'
 
 const Scripts = () => {
   const { user, language } = useApp()
   const [selectedCategory, setSelectedCategory] = useState('traffic')
+  const [customScripts, setCustomScripts] = useState({})
+  const [generatingScript, setGeneratingScript] = useState(false)
+  const [generatedScripts, setGeneratedScripts] = useState({})
 
   const scriptCategories = {
     traffic: {
@@ -25,6 +29,65 @@ const Scripts = () => {
       en: 'Recording',
       es: 'Grabación'
     }
+  }
+
+  // Generate custom script using OpenAI
+  const generateCustomScript = async (scenario, customPrompt = null) => {
+    if (user.subscriptionStatus === 'free' && Object.keys(generatedScripts).length >= 3) {
+      alert(language === 'en' 
+        ? 'Free users can generate up to 3 custom scripts. Upgrade to Premium for unlimited access.' 
+        : 'Los usuarios gratuitos pueden generar hasta 3 scripts personalizados. Actualiza a Premium para acceso ilimitado.')
+      return
+    }
+
+    setGeneratingScript(true)
+    
+    try {
+      const scriptResult = await openaiService.generateScript(scenario, user.location, language)
+      
+      const scriptKey = `${scenario}_${Date.now()}`
+      setGeneratedScripts(prev => ({
+        ...prev,
+        [scriptKey]: {
+          ...scriptResult,
+          scenario,
+          customPrompt
+        }
+      }))
+
+      alert(language === 'en' 
+        ? 'Custom script generated successfully!' 
+        : '¡Script personalizado generado exitosamente!')
+
+    } catch (error) {
+      console.error('Error generating script:', error)
+      alert(language === 'en' 
+        ? 'Error generating script. Please try again.' 
+        : 'Error al generar script. Por favor intenta de nuevo.')
+    } finally {
+      setGeneratingScript(false)
+    }
+  }
+
+  // Get all scripts for current category (static + generated)
+  const getAllScripts = () => {
+    const staticScripts = scripts[selectedCategory] || []
+    const categoryGeneratedScripts = Object.entries(generatedScripts)
+      .filter(([key, script]) => script.scenario === selectedCategory)
+      .map(([key, script]) => ({
+        title: {
+          en: `Custom ${selectedCategory} Script`,
+          es: `Script Personalizado de ${scriptCategories[selectedCategory].es}`
+        },
+        text: {
+          en: script.text,
+          es: script.text
+        },
+        generated: true,
+        timestamp: script.timestamp
+      }))
+    
+    return [...staticScripts, ...categoryGeneratedScripts]
   }
 
   const scripts = {
