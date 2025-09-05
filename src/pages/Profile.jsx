@@ -1,18 +1,97 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
-import { User, MapPin, Star, Settings, Shield, CreditCard } from 'lucide-react'
+import { getStripeService } from '../services'
+import { User, MapPin, Star, Settings, Shield, CreditCard, Loader, CheckCircle } from 'lucide-react'
 
 const Profile = () => {
-  const { user, language, setUser } = useApp()
+  const { user, language, updateUser } = useApp()
   const [showUpgrade, setShowUpgrade] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [subscriptionDetails, setSubscriptionDetails] = useState(null)
+  const [pricingPlans, setPricingPlans] = useState({})
 
-  const handleUpgrade = () => {
-    // In a real app, this would integrate with Stripe
-    setUser(prev => ({ ...prev, subscriptionStatus: 'premium' }))
-    setShowUpgrade(false)
-    alert(language === 'en' 
-      ? 'Upgraded to Premium! You now have access to all features.' 
-      : '¡Actualizado a Premium! Ahora tienes acceso a todas las funciones.')
+  useEffect(() => {
+    // Load pricing plans and subscription details
+    const loadSubscriptionData = async () => {
+      try {
+        const { default: stripeService } = await getStripeService()
+        const plans = stripeService.getPricingPlans()
+        setPricingPlans(plans)
+
+        const subscriptionStatus = await stripeService.getSubscriptionStatus(user.userId)
+        setSubscriptionDetails(subscriptionStatus)
+      } catch (error) {
+        console.error('Error loading subscription data:', error)
+      }
+    }
+
+    loadSubscriptionData()
+  }, [user.userId])
+
+  const handleUpgrade = async () => {
+    setLoading(true)
+    
+    try {
+      // Create Stripe checkout session
+      const { default: stripeService } = await getStripeService()
+      const result = await stripeService.createCheckoutSession(
+        pricingPlans.premium.id,
+        user.userId
+      )
+
+      if (result.success) {
+        if (result.simulated) {
+          // For demo purposes, immediately upgrade
+          await updateUser({ subscriptionStatus: 'premium' })
+          alert(language === 'en' 
+            ? 'Upgraded to Premium! You now have access to all features.' 
+            : '¡Actualizado a Premium! Ahora tienes acceso a todas las funciones.')
+        }
+        // In real implementation, user would be redirected to Stripe Checkout
+      } else {
+        throw new Error('Failed to create checkout session')
+      }
+    } catch (error) {
+      console.error('Error upgrading subscription:', error)
+      alert(language === 'en' 
+        ? 'Error upgrading subscription. Please try again.' 
+        : 'Error al actualizar suscripción. Por favor intenta de nuevo.')
+    } finally {
+      setLoading(false)
+      setShowUpgrade(false)
+    }
+  }
+
+  const handleCancelSubscription = async () => {
+    if (!subscriptionDetails?.subscriptionId) return
+
+    const confirmed = confirm(language === 'en' 
+      ? 'Are you sure you want to cancel your subscription?' 
+      : '¿Estás seguro de que quieres cancelar tu suscripción?')
+
+    if (!confirmed) return
+
+    setLoading(true)
+
+    try {
+      const { default: stripeService } = await getStripeService()
+      const result = await stripeService.cancelSubscription(subscriptionDetails.subscriptionId)
+      
+      if (result.success) {
+        await updateUser({ subscriptionStatus: 'free' })
+        setSubscriptionDetails(prev => ({ ...prev, status: 'cancelled' }))
+        alert(language === 'en' 
+          ? 'Subscription cancelled successfully.' 
+          : 'Suscripción cancelada exitosamente.')
+      }
+    } catch (error) {
+      console.error('Error cancelling subscription:', error)
+      alert(language === 'en' 
+        ? 'Error cancelling subscription. Please try again.' 
+        : 'Error al cancelar suscripción. Por favor intenta de nuevo.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const features = {
